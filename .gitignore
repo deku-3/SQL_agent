@@ -1,0 +1,11 @@
+﻿.env
+chroma_db/
+chroma_db_old/
+checkpoints.db
+*.db
+*.sqlite
+__pycache__/
+venv/
+*.pyc
+*.bak
+.vscode/
