@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8b949e"/>
+    </marker>
+    <marker id="bAmber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#d29922"/>
+    </marker>
+    <marker id="bBlue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#58a6ff"/>
+    </marker>
+    <marker id="bGreen" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3fb950"/>
+    </marker>
+    <marker id="bRed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#f85149"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="760" rx="14" fill="#0d1117"/>
+  <rect x="1" y="1" width="1198" height="758" rx="13" fill="none" stroke="#21262d" stroke-width="2"/>
+
+  <text x="44" y="50" fill="#e6edf3" font-size="20" font-weight="700">Error &amp; recovery logic</text>
+  <text x="44" y="72" fill="#8b949e" font-size="12" letter-spacing="1.6">WHAT THE AGENT CHECKS AFTER GENERATING SQL — AND HOW IT RECOVERS</text>
+  <line x1="44" y1="88" x2="1156" y2="88" stroke="#21262d"/>
+
+  <!-- incoming -->
+  <rect x="44" y="120" width="150" height="44" rx="10" fill="#1c2128" stroke="#a371f7" stroke-width="1.5"/>
+  <text x="119" y="147" fill="#e6edf3" font-size="13" font-weight="600" text-anchor="middle">write_query</text>
+  <path d="M 194 142 C 240 142 250 150 258 158" fill="none" stroke="#8b949e" stroke-width="1.5" marker-end="url(#b)"/>
+
+  <!-- ============ CHECK COLUMN ============ -->
+  <text x="262" y="118" fill="#8b949e" font-size="11" letter-spacing="2">CHECKS, IN ORDER</text>
+
+  <!-- check 1: forbidden -->
+  <rect x="262" y="130" width="330" height="62" rx="9" fill="#161b22" stroke="#f85149" stroke-width="1.4"/>
+  <text x="280" y="152" fill="#f85149" font-size="12" font-weight="700">1 · forbidden keyword</text>
+  <text x="280" y="169" fill="#8b949e" font-size="10.5">INSERT / UPDATE / DELETE / DROP / ALTER / PRAGMA…</text>
+  <text x="280" y="183" fill="#8b949e" font-size="10.5">blocked before the query reaches the database</text>
+
+  <!-- check 2: schema mismatch -->
+  <rect x="262" y="206" width="330" height="76" rx="9" fill="#161b22" stroke="#58a6ff" stroke-width="1.4"/>
+  <text x="280" y="228" fill="#58a6ff" font-size="12" font-weight="700">2 · SCHEMA_MISMATCH declared</text>
+  <text x="280" y="245" fill="#8b949e" font-size="10.5">the SQL writer is instructed to emit this sentinel when the</text>
+  <text x="280" y="259" fill="#8b949e" font-size="10.5">question's entities don't exist here, instead of substituting</text>
+  <text x="280" y="273" fill="#8b949e" font-size="10.5">a stand-in table (the "count countries for singers" failure)</text>
+
+  <!-- check 3: exception -->
+  <rect x="262" y="296" width="330" height="90" rx="9" fill="#161b22" stroke="#58a6ff" stroke-width="1.4"/>
+  <text x="280" y="318" fill="#58a6ff" font-size="12" font-weight="700">3 · "no such table / column"</text>
+  <text x="280" y="335" fill="#8b949e" font-size="10.5">SQLite itself proves the database is wrong — deterministic,</text>
+  <text x="280" y="349" fill="#8b949e" font-size="10.5">no heuristics needed. Gated on attempts ≥ 2 so a merely</text>
+  <text x="280" y="363" fill="#8b949e" font-size="10.5">hallucinated column gets fixed first: re-routing on the very</text>
+  <text x="280" y="377" fill="#8b949e" font-size="10.5">first miss discarded correct databases and cost 3 eval points</text>
+
+  <!-- check 4: other error -->
+  <rect x="262" y="400" width="330" height="58" rx="9" fill="#161b22" stroke="#d29922" stroke-width="1.4"/>
+  <text x="280" y="422" fill="#d29922" font-size="12" font-weight="700">4 · any other SQL error</text>
+  <text x="280" y="439" fill="#8b949e" font-size="10.5">syntax, type, aggregation misuse — the error text itself</text>
+  <text x="280" y="452" fill="#8b949e" font-size="10.5">is handed back to the model verbatim</text>
+
+  <!-- check 5: suspicious empty -->
+  <rect x="262" y="472" width="330" height="150" rx="9" fill="#161b22" stroke="#d29922" stroke-width="1.4"/>
+  <text x="280" y="494" fill="#d29922" font-size="12" font-weight="700">5 · zero rows, but the query was valid</text>
+  <text x="280" y="511" fill="#8b949e" font-size="10.5">ambiguous: the data may genuinely be absent, or the literal</text>
+  <text x="280" y="525" fill="#8b949e" font-size="10.5">may not match how the value is stored. So the agent probes:</text>
+  <rect x="280" y="534" width="294" height="76" rx="7" fill="#0d1117" stroke="#30363d" stroke-width="1"/>
+  <text x="292" y="552" fill="#8b949e" font-size="10">• pull every column–literal pair out of the SQL</text>
+  <text x="292" y="567" fill="#8b949e" font-size="10">  (handles =, LIKE, IN (…), TRIM(col), LOWER(col))</text>
+  <text x="292" y="583" fill="#8b949e" font-size="10">• for each, ask the DB what is actually stored nearby</text>
+  <text x="292" y="598" fill="#8b949e" font-size="10">• feed those real values back as evidence, then retry</text>
+  <text x="280" y="632" fill="#3fb950" font-size="10">first empty = suspicious · second empty = accepted as the true answer</text>
+
+  <!-- ============ RECOVERY COLUMN ============ -->
+  <text x="700" y="118" fill="#8b949e" font-size="11" letter-spacing="2">RECOVERY PATH</text>
+
+  <!-- retry -->
+  <rect x="700" y="130" width="300" height="96" rx="10" fill="#1c2128" stroke="#d29922" stroke-width="1.6"/>
+  <text x="720" y="155" fill="#d29922" font-size="13" font-weight="700">↺ retry — same database</text>
+  <text x="720" y="175" fill="#8b949e" font-size="10.5">back to write_query with the failure appended to</text>
+  <text x="720" y="189" fill="#8b949e" font-size="10.5">the conversation: error text, or probe evidence,</text>
+  <text x="720" y="203" fill="#8b949e" font-size="10.5">or the forbidden-operation notice</text>
+  <text x="720" y="219" fill="#e6edf3" font-size="10.5" font-weight="600">budget: 3 attempts</text>
+
+  <!-- reroute -->
+  <rect x="700" y="252" width="300" height="122" rx="10" fill="#1c2128" stroke="#58a6ff" stroke-width="1.6"/>
+  <text x="720" y="277" fill="#58a6ff" font-size="13" font-weight="700">⇄ re-route — different database</text>
+  <text x="720" y="297" fill="#8b949e" font-size="10.5">back to retrieve, with:</text>
+  <text x="732" y="313" fill="#8b949e" font-size="10.5">• the failed database added to banned_dbs</text>
+  <text x="732" y="328" fill="#8b949e" font-size="10.5">• fresh candidates fetched, banned ones filtered out</text>
+  <text x="732" y="343" fill="#8b949e" font-size="10.5">• attempts reset to 0 — a clean retry budget</text>
+  <text x="720" y="365" fill="#e6edf3" font-size="10.5" font-weight="600">budget: 1 database switch per question</text>
+
+  <!-- give up -->
+  <rect x="700" y="400" width="300" height="86" rx="10" fill="#291415" stroke="#f85149" stroke-width="1.6"/>
+  <text x="720" y="425" fill="#f85149" font-size="13" font-weight="700">✕ give_up</text>
+  <text x="720" y="445" fill="#8b949e" font-size="10.5">attempts exhausted, or no database left to try</text>
+  <text x="720" y="459" fill="#8b949e" font-size="10.5">an honest failure message — never a fabricated answer</text>
+  <text x="720" y="477" fill="#8b949e" font-size="10.5">and never SQL presented as if it had worked</text>
+
+  <!-- answer -->
+  <rect x="700" y="512" width="300" height="86" rx="10" fill="#12261a" stroke="#3fb950" stroke-width="1.6"/>
+  <text x="720" y="537" fill="#3fb950" font-size="13" font-weight="700">✓ answer</text>
+  <text x="720" y="557" fill="#8b949e" font-size="10.5">rows in hand — the response states the actual values</text>
+  <text x="720" y="571" fill="#8b949e" font-size="10.5">an empty result is reported as "no matching data",</text>
+  <text x="720" y="585" fill="#8b949e" font-size="10.5">not dressed up as an answer</text>
+
+  <!-- connectors: checks -> recovery -->
+  <path d="M 592 161 C 640 161 660 170 696 176" fill="none" stroke="#d29922" stroke-width="1.4" marker-end="url(#bAmber)"/>
+  <path d="M 592 244 C 640 244 660 280 696 300" fill="none" stroke="#58a6ff" stroke-width="1.4" marker-end="url(#bBlue)"/>
+  <path d="M 592 341 C 640 341 660 320 696 312" fill="none" stroke="#58a6ff" stroke-width="1.4" marker-end="url(#bBlue)"/>
+  <path d="M 592 429 C 636 429 660 220 696 196" fill="none" stroke="#d29922" stroke-width="1.4" marker-end="url(#bAmber)"/>
+  <path d="M 592 547 C 640 547 660 240 696 208" fill="none" stroke="#d29922" stroke-width="1.2" stroke-dasharray="5 4" marker-end="url(#bAmber)"/>
+  <path d="M 592 612 C 650 612 660 560 696 552" fill="none" stroke="#3fb950" stroke-width="1.4" marker-end="url(#bGreen)"/>
+
+  <!-- budget exhausted arrows -->
+  <path d="M 850 226 C 850 240 850 244 850 248" fill="none" stroke="#f85149" stroke-width="1.2" stroke-dasharray="4 4" marker-end="url(#bRed)"/>
+  <path d="M 1000 440 L 1040 440" fill="none" stroke="#f85149" stroke-width="0"/>
+  <path d="M 940 374 C 940 388 940 392 940 396" fill="none" stroke="#f85149" stroke-width="1.2" stroke-dasharray="4 4" marker-end="url(#bRed)"/>
+  <text x="1010" y="238" fill="#8b949e" font-size="9.5">budget spent ↓</text>
+  <text x="1010" y="388" fill="#8b949e" font-size="9.5">no DB left ↓</text>
+
+  <!-- design note -->
+  <rect x="44" y="654" width="1112" height="70" rx="10" fill="#0d1117" stroke="#21262d" stroke-width="1.2"/>
+  <text x="64" y="678" fill="#e6edf3" font-size="12" font-weight="700">The design principle</text>
+  <text x="64" y="698" fill="#8b949e" font-size="11">Most agents retry on errors. This one also distrusts <tspan fill="#e6edf3">plausible successes</tspan> — a query that runs cleanly but returns nothing, or a schema that could be made to</text>
+  <text x="64" y="714" fill="#8b949e" font-size="11">answer the wrong question. Each failure mode is separated because each needs different medicine: fix the SQL, change the database, or admit defeat honestly.</text>
+</svg>
