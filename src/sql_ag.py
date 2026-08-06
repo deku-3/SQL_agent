@@ -27,11 +27,11 @@ from langfuse.langchain import CallbackHandler
 langfuse_handler = CallbackHandler()
 # ---------------------------------------------------------------------
 
-from SQL_agent.src.vectorstore import db_docs_store, examples_store
-from SQL_agent.src.config import spider_db_uri
+from src.vectorstore import db_docs_store, examples_store
+from src.config import spider_db_uri
 
 # routing layer (eval-proven: 81% two-stage on dev sample)
-from SQL_agent.src.disambiguate import route_docs, disambiguate, get_schema
+from src.disambiguate import route_docs, disambiguate, get_schema
 
 
 # ---------------------------------------------------------------
