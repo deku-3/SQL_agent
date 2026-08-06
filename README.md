@@ -52,6 +52,21 @@ the other.
 
 ---
 
+## 💬 In use
+
+![chat](docs/demo-chat.png)
+
+A follow-up like *"how many flights it did"* needs no repetition — the agent
+resolves the reference against the conversation, recognises it as the same
+subject, and stays on the database it already selected.
+
+Every step is visible while it runs, so a wrong answer is traceable to the
+node that produced it:
+
+![progress](docs/demo-progress.png)
+
+---
+
 ## 🔎 Two things this agent distrusts
 
 Most text-to-SQL agents retry when SQL *errors*. This one also distrusts outcomes that look fine but aren't.
