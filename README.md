@@ -28,7 +28,12 @@ vocabulary is inherently ambiguous, e.g. *"find the total number of players"*
 
 ---
 ## 🧠 Architecture
-![architecture](docs/architecture.svg)
+
+![pipeline](docs/architecture-pipeline.svg)
+
+### Error handling & recovery
+
+![recovery](docs/architecture-recovery.svg)
 
 
 ### The pipeline
