@@ -2,9 +2,9 @@ import json, sqlite3
 from pathlib import Path
 from langchain_openai import ChatOpenAI
 from langchain_core.documents import Document
-from vectorstore import db_docs_store
+from SQL_agent.src.vectorstore import db_docs_store
 from dotenv import load_dotenv
-from config import TABLES_JSON,SPIDER_DB_DIR
+from SQL_agent.src.config import TABLES_JSON,SPIDER_DB_DIR
 load_dotenv()
 
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)

@@ -18,9 +18,9 @@ import random
 import sqlite3
 from pathlib import Path
 
-from config import DEV_JSON, SPIDER_DB_DIR
+from SQL_agent.src.config import DEV_JSON, SPIDER_DB_DIR
 # Import the MEMORY-FREE graph (each question independent) + state builder.
-from sql_ag import graph
+from SQL_agent.src.sql_ag import graph
 
 N = 40                      # questions to evaluate (seed-42, comparable across runs)
 SEED = 42

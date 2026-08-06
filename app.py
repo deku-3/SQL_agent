@@ -4,8 +4,8 @@
 
 import uuid
 import streamlit as st
-from sql_ag import chat_graph as graph, delete_conversation
-from thread_registry import init_registry, register_thread, list_threads, delete_thread_record
+from SQL_agent.src.sql_ag import chat_graph as graph, delete_conversation
+from SQL_agent.src.thread_registry import init_registry, register_thread, list_threads, delete_thread_record
 from langchain_openai import ChatOpenAI
 from langfuse import get_client
 

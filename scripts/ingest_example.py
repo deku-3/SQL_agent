@@ -10,10 +10,10 @@ import json
 from langchain_core.documents import Document
 print("imports 1 done")
 
-from vectorstore import examples_store
+from SQL_agent.src.vectorstore import examples_store
 print("vectorstore loaded")
 
-from config import TRAIN_JSON   # or your inline path
+from SQL_agent.src.config import TRAIN_JSON   # or your inline path
 print("config loaded:", TRAIN_JSON)
 
 def main():

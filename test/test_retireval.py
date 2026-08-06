@@ -6,8 +6,8 @@ ctypes.CDLL(_d + r"\msvcp140.dll")
 print("runtime preloaded")
 
 import json, random
-from config import DEV_JSON
-from vectorstore import db_docs_store
+from SQL_agent.src.config import DEV_JSON
+from SQL_agent.src.vectorstore import db_docs_store
 
 dev = json.load(open(DEV_JSON, encoding="utf-8"))
 sample = random.sample(dev, 100)
