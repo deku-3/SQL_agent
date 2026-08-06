@@ -24,8 +24,6 @@ databases like `flight_2` vs `flight_4` that can both answer the same question),
 vocabulary is inherently ambiguous, e.g. *"find the total number of players"*
 → women's tennis).
 
-> Every number here is reproducible: the eval harness lives in `test.py`.
-
 ---
 ## 🧠 Architecture
 
