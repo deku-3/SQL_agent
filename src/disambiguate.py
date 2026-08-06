@@ -16,8 +16,8 @@ from functools import lru_cache
 from langchain_openai import ChatOpenAI
 from langchain_community.utilities import SQLDatabase
 
-from SQL_agent.src.config import DEV_JSON, spider_db_uri
-from SQL_agent.src.vectorstore import db_docs_store
+from src.config import DEV_JSON, spider_db_uri
+from src.vectorstore import db_docs_store
 
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 

@@ -11,27 +11,27 @@ ctypes.CDLL(_d + r"\vcruntime140.dll")
 ctypes.CDLL(_d + r"\vcruntime140_1.dll")
 ctypes.CDLL(_d + r"\msvcp140.dll")
 
-import os
 import re
 from dotenv import load_dotenv
 load_dotenv()          # loads OPENAI_API_KEY + LANGFUSE_* keys
-
+from langgraph.checkpoint.sqlite import SqliteSaver
 from pydantic import BaseModel, Field
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.utilities import SQLDatabase
 from langgraph.graph import StateGraph, MessagesState, END
-
+from src.config import CHECKPOINT_DB
+import sqlite3
 # --- LANGFUSE TRACING -------------------------------------------------
 from langfuse.langchain import CallbackHandler
 langfuse_handler = CallbackHandler()
 # ---------------------------------------------------------------------
 
-from SQL_agent.src.vectorstore import db_docs_store, examples_store
-from SQL_agent.src.config import spider_db_uri
+from src.vectorstore import db_docs_store, examples_store
+from src.config import spider_db_uri
 
 # routing layer (eval-proven: 81% two-stage on dev sample)
-from SQL_agent.src.disambiguate import route_docs, disambiguate, get_schema
+from src.disambiguate import route_docs, disambiguate, get_schema
 
 
 # ---------------------------------------------------------------
@@ -507,12 +507,8 @@ if __name__ == "__main__":
 # Checkpointered graph for the Streamlit chat app
 # ---------------------------------------------------------------
 
-from langgraph.checkpoint.sqlite import SqliteSaver
-import sqlite3
-from pathlib import Path
 
-_ckpt_conn = sqlite3.connect(
-    str(Path(__file__).parent / "checkpoints.db"), check_same_thread=False)
+_ckpt_conn = sqlite3.connect(CHECKPOINT_DB, check_same_thread=False)
 memory = SqliteSaver(_ckpt_conn)
 
 chat_graph = workflow.compile(checkpointer=memory).with_config(

@@ -3,7 +3,7 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
 from dotenv import load_dotenv
 load_dotenv()
-PERSIST_DIR = str(Path(__file__).parent / "chroma_db")
+from src.config import PERSIST_DIR
 
 embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 
