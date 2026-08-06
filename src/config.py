@@ -1,5 +1,7 @@
 from pathlib import Path
-
+ROOT = Path(__file__).resolve().parent.parent
+PERSIST_DIR   = str(ROOT / "chroma_db")
+CHECKPOINT_DB = str(ROOT / "checkpoints.db")   # if vectorstore doesn't already use this
 SPIDER_DIR = Path(r"C:\Users\AdityaKumar\Downloads\spider_data\spider_data") 
 SPIDER_DB_DIR = SPIDER_DIR / "database"
 TABLES_JSON = SPIDER_DIR / "tables.json"
