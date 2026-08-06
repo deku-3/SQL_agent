@@ -29,25 +29,19 @@ vocabulary is inherently ambiguous, e.g. *"find the total number of players"*
 ---
 
 ## 🧠 Architecture
-
-```
-                 ┌──────────────────────────────────────────────────┐
- user question   │                LangGraph state machine           │
-──────────────►  │                                                  │
-                 │  rewrite ──► retrieve ──► pick_db ──► write_query│
-                 │  (resolve      (top-5      (LLM        (schema + │
-                 │  follow-ups)   by vector)  judge)      few-shot) │
-                 │                                          │       │
-                 │                                          ▼       │
-                 │              answer ◄──── execute_query          │
-                 │                │             │    ▲              │
-                 │                │        empty?    │ error/empty  │
-                 │                │             ▼    │ feedback     │
-                 │                │        🔎 probe actual          │
-                 │                │           stored values         │
-                 ▼                │                                  │
-              response            └──────────── give_up (max 3)     │
-                 └──────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    Q([user question]) --> rewrite
+    rewrite["rewrite<br/><i>resolve follow-ups</i>"] --> retrieve
+    retrieve["retrieve<br/><i>top-5 by vector</i>"] --> pick_db
+    pick_db["pick_db<br/><i>LLM judge</i>"] --> write_query
+    write_query["write_query<br/><i>schema + few-shot</i>"] --> execute_query
+    execute_query{"execute_query<br/><i>safety gate +<br/>empty-result probe</i>"}
+    execute_query -- "ok" --> answer
+    execute_query -- "error / suspicious empty<br/>(feedback + evidence)" --> write_query
+    execute_query -- "max 3 attempts" --> give_up
+    answer --> E([END])
+    give_up --> E
 ```
 
 ![agent graph](graph.png)
