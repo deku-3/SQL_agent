@@ -29,11 +29,11 @@ from langfuse.langchain import CallbackHandler
 langfuse_handler = CallbackHandler()
 # ---------------------------------------------------------------------
 
-from vectorstore import db_docs_store, examples_store
-from config import spider_db_uri
+from src.vectorstore import db_docs_store, examples_store
+from src.config import spider_db_uri
 
 # routing layer (eval-proven: 81% two-stage on dev sample)
-from disambiguate import route_docs, disambiguate, get_schema
+from src.disambiguate import route_docs, disambiguate, get_schema
 
 
 # ---------------------------------------------------------------
@@ -48,6 +48,7 @@ MAX_RESULT_CHARS = 4000    # cap on query-result text entering LLM prompts
 MESSAGE_WINDOW = 8         # how many recent messages write_query sees
 MAX_QUESTION_CHARS = 500   # reject oversized questions BEFORE any LLM call
 MAX_REROUTES = 1           # how many times one question may switch database
+MAX_VALIDATION_RETRIES = 1 # how many times validation may send SQL back
 
 
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
@@ -57,6 +58,12 @@ class SQLQuery(BaseModel):
     """Generate a SQL query to answer the user's question."""
     reasoning: str = Field(description="Brief explanation of how this query answers the question")
     query: str = Field(description="A syntactically correct SQLite query. SELECT statements only.")
+
+
+class Verdict(BaseModel):
+    """Judgement on whether a query result actually answers the question."""
+    verdict: str = Field(description="Exactly one of: PASS, RETRY")
+    critique: str = Field(description="If RETRY: what is wrong and how to fix the SQL. If PASS: empty.")
 
 
 # ---------------------------------------------------------------
@@ -73,6 +80,7 @@ class AgentState(MessagesState):
     candidates: list      # candidates from stage 1
     reroutes: int         # how many times we've switched database this question
     banned_dbs: list      # databases proven wrong for this question
+    validations: int      # how many times validation sent the SQL back
 
 
 # ---------------------------------------------------------------
@@ -283,13 +291,16 @@ Rules:
 - Text values in the data may have inconsistent whitespace or casing.
   When filtering on specific text values (codes, names), compare defensively,
   e.g. WHERE TRIM(col) = 'APG' or LOWER(TRIM(col)) = LOWER('value').
-- CRITICAL: if the question asks about entities that DO NOT EXIST in this
-  schema, you MUST output exactly: SELECT 'SCHEMA_MISMATCH'
-  Never substitute a different table as a stand-in. Counting countries when
-  asked about singers is a serious error - outputting SCHEMA_MISMATCH is the
-  correct behaviour, and another database will be tried instead.
-- Unless the question asks for a complete list or is an aggregate
-  (COUNT/SUM/AVG/...), add LIMIT 50 to keep results manageable.
+- Return exactly the columns the question asks for, in that order, even if a
+  column is requested more than once.
+- SCHEMA_MISMATCH (use sparingly): only if the question's subject matter is
+  entirely absent from this schema - e.g. asked about singers when the schema
+  holds only countries and cities - output exactly: SELECT 'SCHEMA_MISMATCH'
+  Another database will then be tried. If the needed tables DO exist but the
+  query is complex, write the query anyway; never use SCHEMA_MISMATCH to avoid
+  difficulty, and never substitute an unrelated table as a stand-in.
+- Do NOT add a LIMIT unless the question asks for a specific number of rows
+  (e.g. "top 5"). Returning the full result set is expected.
 
 The question to answer (already resolved to standalone form):
 {state['question']}"""
@@ -448,7 +459,14 @@ def execute_query(state: AgentState):
         # DETERMINISTIC wrong-database detection: SQLite says the table/column
         # the question needs does not exist here -> switch databases instead of
         # letting the model retry until it substitutes something plausible.
+        #
+        # CRITICAL GUARD (attempts >= 2): give the model ONE chance to fix a
+        # hallucinated table/column name on this database first. Re-routing on
+        # the FIRST "no such table/column" throws away CORRECT databases over
+        # recoverable typos - measured cost: -3 points on the eval (car_1 ->
+        # formula_1 because the model wrote CountryId instead of Country).
         if (any(sig in msg for sig in WRONG_DB_SIGNALS)
+                and state["attempts"] >= 2
                 and (state.get("reroutes") or 0) < MAX_REROUTES):
             return _wrong_db(state, str(e).split("\n")[0])
 
@@ -456,6 +474,110 @@ def execute_query(state: AgentState):
         return {"error": "yes",
                 "messages": [("user", f"The query failed with this error: {e}\n"
                                       f"Rewrite the query to fix it.")]}
+
+
+# ---------------------------------------------------------------
+# VALIDATION NODE  ("the $1,233 defense")
+#
+# error == "no" only means the SQL RAN. It does not mean the answer is right.
+# Two runs of the same Chinook question once returned $1,233.54 and $138.60 -
+# both executed cleanly; the first had a join fan-out that counted each sale
+# ~9 times. Other silent-wrong shapes seen in this project: a query returning
+# literal English text as data, a wrong-but-plausible join path, and counting
+# countries when asked about singers.
+#
+# So before answering we ask a model to check plausibility of the TRIPLE
+# (question, SQL, result). PASS -> answer. RETRY -> back to write_query with
+# the critique, capped at MAX_VALIDATION_RETRIES so it cannot second-guess
+# forever.
+# ---------------------------------------------------------------
+
+VALIDATE_PROMPT = """You are reviewing a text-to-SQL result before it is shown to a user.
+
+Question: {question}
+Database: {db_id}
+SQL executed:
+{query}
+Result (may be truncated):
+{result}
+
+Check for these specific failure modes:
+1. Does the SQL compute what the question actually asked (right entity, right
+   aggregation, right filters)?
+2. JOIN FAN-OUT: does it SUM/COUNT after a join that can multiply rows? That
+   silently inflates totals.
+3. Does the result contain literal English text posing as data, or values that
+   clearly do not match the entity asked about?
+4. Are the returned columns the ones the question asked for?
+5. Magnitudes: are the numbers plausible for the question?
+
+Do NOT fail it merely because the result is empty - empty can be the truthful
+answer. Do NOT nitpick column aliases or row order.
+
+Reply PASS if the result can be reported to the user.
+Reply RETRY only if there is a concrete, fixable problem with the SQL; then say
+exactly what is wrong and how to fix it."""
+
+
+# MEASURED VERDICT: DISABLED.
+# Three eval runs on the same seed-42 sample:
+#     72%  no validator
+#     62%  validator on every query
+#     62%  validator on aggregation-across-JOIN only
+# Firing tally on the last run: 6 firings -> 1 genuine save (added a missing
+# LIMIT 1), 3 active harms (it "improved" correct SQL into non-matching form:
+# epoch-converted an average date that gold left naive; rewrote a working
+# GROUP BY into a subquery that returned the wrong country; triggered a
+# cascade that re-routed off the correct database).
+# It also resets attempts=0, which defeats the wrong-db guard above.
+#
+# Its real value is production, not this benchmark: nobody in an org has gold
+# SQL to compare against, and join fan-out inflation ($1,233 vs $138) is a
+# failure users cannot detect themselves. Keep the code; re-enable by removing
+# the early return below, ideally behind a flag once there is a
+# human-judged eval set rather than gold-SQL matching.
+
+VALIDATION_ENABLED = False
+
+
+def validate(state: AgentState):
+    if not VALIDATION_ENABLED:
+        return {}
+
+    # nothing to validate: no rows, or a message-only path (schema mismatch)
+    if not state.get("query") or "SCHEMA_MISMATCH" in state["query"]:
+        return {}
+
+    print("--- Validating result ---")
+    chain = llm.with_structured_output(Verdict)
+    v = chain.invoke(VALIDATE_PROMPT.format(
+        question=state["question"],
+        db_id=state.get("db_id", ""),
+        query=state["query"],
+        result=(state.get("result") or "(empty)")[:1500],
+    ))
+    verdict = (v.verdict or "").strip().upper()
+
+    if "RETRY" in verdict and (state.get("validations") or 0) < MAX_VALIDATION_RETRIES:
+        print(f"    RETRY: {v.critique[:200]}")
+        return {
+            "error": "invalid_result",
+            "validations": (state.get("validations") or 0) + 1,
+            "attempts": 0,          # fresh SQL-retry budget for the rewrite
+            "messages": [("user",
+                "A reviewer checked your query against the question and found a "
+                f"problem:\n{v.critique}\nRewrite the SQL to fix it.")],
+        }
+
+    if "RETRY" in verdict:
+        print("    RETRY but budget spent -> accepting result")
+    else:
+        print("    PASS")
+    return {"error": "no"}
+
+
+def route_after_validate(state: AgentState):
+    return "write_query" if state["error"] == "invalid_result" else "answer"
 
 
 def answer(state: AgentState):
@@ -528,6 +650,7 @@ workflow.add_node("retrieve", retrieve)
 workflow.add_node("pick_db", pick_db)
 workflow.add_node("write_query", write_query)
 workflow.add_node("execute_query", execute_query)
+workflow.add_node("validate", validate)     # NEW: plausibility check
 workflow.add_node("answer", answer)
 workflow.add_node("give_up", give_up)
 
@@ -539,10 +662,12 @@ workflow.add_edge("retrieve", "pick_db")
 workflow.add_edge("pick_db", "write_query")
 workflow.add_edge("write_query", "execute_query")
 workflow.add_conditional_edges("execute_query", route_after_execute,
-    {"answer": "answer",
+    {"answer": "validate",          # success now goes through validation first
      "write_query": "write_query",
-     "retrieve": "retrieve",        # NEW: wrong database -> pick another
+     "retrieve": "retrieve",        # wrong database -> pick another
      "give_up": "give_up"})
+workflow.add_conditional_edges("validate", route_after_validate,
+    {"answer": "answer", "write_query": "write_query"})
 workflow.add_edge("answer", END)
 workflow.add_edge("give_up", END)
 
@@ -565,6 +690,7 @@ def ask(question: str):
         "candidates": [],
         "reroutes": 0,
         "banned_dbs": [],
+        "validations": 0,
     }
     final_state = None
     for event in graph.stream(initial, stream_mode="values"):
@@ -592,7 +718,8 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from pathlib import Path
 
 _ckpt_conn = sqlite3.connect(
-    str(Path(__file__).parent / "checkpoints.db"), check_same_thread=False)
+    str(Path(__file__).resolve().parent.parent / "test_db" / "checkpoints.db"),
+    check_same_thread=False)
 memory = SqliteSaver(_ckpt_conn)
 
 chat_graph = workflow.compile(checkpointer=memory).with_config(
